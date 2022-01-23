@@ -154,10 +154,11 @@ class RouteUtils {
         }
       }
 
-      // Handle 429 errors thrown by nginx
+      // Handle 429 errors
       if (err.error) {
         console.log('decodeError: err: ', err)
 
+        // Error thrown by nginx (usually the SLPDB load balancer.)
         if (err.error.includes('429 Too Many Requests')) {
           const internalMsg =
             '429 error thrown by nginx caught by route-utils.js/decodeError()'
@@ -167,6 +168,17 @@ class RouteUtils {
           return {
             msg: '429 Too Many Requests',
             status: 429
+          }
+        } else if (err.error.includes('Too many requests')) {
+          // Error is being thrown by bch-api rate limit middleware.
+          return {
+            msg: '429 Too Many Requests',
+            status: 429
+          }
+        } else if (err.error.includes('Network error:')) {
+          return {
+            msg: err.error,
+            status: 503
           }
         }
       }

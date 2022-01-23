@@ -56,7 +56,7 @@ const ANON_LIMITS = config.anonRateLimit
 const WHITELIST_DOMAINS = config.whitelistDomains
 const WHITELIST_POINTS_TO_CONSUME = config.whitelistRateLimit
 const POINTS_PER_MINUTE = config.pointsPerMinute
-const INTERNAL_POINTS_TO_CONSUME = 10
+const INTERNAL_POINTS_TO_CONSUME = config.internalRateLimit
 
 class RateLimits {
   constructor () {
@@ -154,6 +154,7 @@ class RateLimits {
             res,
             defaultJwt
           )
+          // console.log(`hasExceededRateLimit: `, hasExceededRateLimit)
 
           if (!hasExceededRateLimit) {
             // Rate limits have not been exceeded. Processing can continue.
@@ -195,6 +196,7 @@ class RateLimits {
           res,
           req.locals.jwtToken
         )
+        // console.log('hasExceededRateLimit: ', hasExceededRateLimit)
 
         if (!hasExceededRateLimit) {
           // Rate limits have not been exceeded. Processing can continue.
@@ -218,9 +220,20 @@ class RateLimits {
   // it will return the 'res' object with an error status and message, which
   // should be returned by the middleware.
   async trackRateLimits (req, res, jwtToken) {
+    const debugInfo = {
+      jwtToken,
+      userObj: req.body.usrObj,
+      locals: req.locals
+    }
+
     // Anonymous rate limits are used by default.
     let pointsToConsume = ANON_LIMITS
+    // console.log('pointsToConsume: ', pointsToConsume)
+
     let key = req.ip // Use the IP address as the key, by default.
+    debugInfo.ip = req.ip
+
+    // console.log('jwtToken: ', jwtToken)
 
     try {
       // Decode the JWT token if it exists
@@ -230,14 +243,20 @@ class RateLimits {
 
         // Preferentially use the decoded ID in the JWT payload, as the key.
         key = decoded.id
+        debugInfo.id = key
 
         pointsToConsume = decoded.pointsToConsume
+        debugInfo.pointsToConsume = pointsToConsume
       }
       // console.log(`rate limit key: ${key}`)
 
       // This function will throw an error if the user exceeds the rate limit.
       // The 429 error response is handled by the catch().
       await _this.rateLimiter.consume(key, pointsToConsume)
+
+      // Debugging
+      // const rateLimitData = await _this.rateLimiter.consume(key, pointsToConsume)
+      // console.log(`rateLimitData: `, rateLimitData)
 
       res.locals.pointsToConsume = pointsToConsume // Feedback for tests.
 
@@ -250,6 +269,10 @@ class RateLimits {
 
       res.locals.rateLimitTriggered = true
       // console.log('res.locals: ', res.locals)
+
+      // console.log(
+      //   `rate limit debug info: ${JSON.stringify(debugInfo, null, 2)}`
+      // )
 
       // Rate limited was triggered
       res.status(429) // https://github.com/Bitcoin-com/rest.bitcoin.com/issues/330
